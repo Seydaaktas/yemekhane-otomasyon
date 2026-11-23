@@ -3,68 +3,223 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Yemekhane Otomasyonu · Başlangıç</title>
+  <title>Yemekhane Otomasyonu</title>
   <link rel="stylesheet" href="/css/temel.css">
-  <style>
-    /* Yalnızca bu geçici sayfaya ait stiller */
-    .fis {
-      background: var(--yuzey);
-      margin-block: 2rem;
-      padding: 1.5rem var(--bosluk);
-      border-radius: var(--kose);
-      /* yemek fişi görünümü: alt kenarda yırtma çizgisi */
-      border-bottom: 2px dashed var(--cizgi);
-    }
-    .fis h1 { margin-bottom: 0.25rem; }
-    .fis .alt { color: var(--metin-soluk); margin-bottom: 1.5rem; }
-    .servisler { width: 100%; border-collapse: collapse; font-size: var(--boyut-kucuk); }
-    .servisler th, .servisler td { text-align: left; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--cizgi); }
-    .servisler td:last-child { white-space: nowrap; }
-    #uygulama-durumu { margin-top: 1.5rem; }
-  </style>
+  <link rel="stylesheet" href="/css/uygulama.css">
 </head>
 <body>
-  <main class="kapsayici">
-    <section class="fis">
+
+  <!-- 1. EKRAN: GİRİŞ -->
+  <main id="giris-ekrani" class="kapsayici">
+    <section class="kart giris-kutu">
       <h1>Yemekhane Otomasyonu</h1>
-      <p class="alt">Apache çalışıyor. Bu sayfa başlangıç paketine ait; kendi giriş ekranınızla değiştirin.</p>
+      <p style="color: var(--metin-soluk);">Kampüs yemekhane menü, rezervasyon ve bakiye sistemi</p>
 
-      <div class="tablo-kaydir">
-        <table class="servisler">
-          <thead>
-            <tr><th>Servis</th><th>Görevi</th><th>Bilgisayarınızdan</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>frontend</td><td>HTML/CSS, yönlendirme</td><td>localhost:8080</td></tr>
-            <tr><td>mysql-primary</td><td>yazma</td><td>localhost:3307</td></tr>
-            <tr><td>mysql-replica</td><td>okuma, salt okunur</td><td>localhost:3308</td></tr>
-            <tr><td>redis</td><td>menü önbelleği, oturum</td><td>localhost:6379</td></tr>
-            <tr><td>uygulama</td><td>sizin yazacağınız servis</td><td>Apache üzerinden</td></tr>
-          </tbody>
-        </table>
+      <div id="giris-bildirim" class="bildirim bildirim-hata gizli" role="alert"></div>
+
+      <form id="giris-formu" style="margin-top: 1rem;">
+        <div class="alan">
+          <label for="giris-eposta">Kurumsal E-posta</label>
+          <input type="email" id="giris-eposta" required autocomplete="username" placeholder="ad.soyad@ogr.kampus.edu.tr">
+        </div>
+        <div class="alan">
+          <label for="giris-sifre">Şifre</label>
+          <input type="password" id="giris-sifre" required autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <button type="submit" class="dugme" style="width: 100%;">Giriş Yap</button>
+      </form>
+
+      <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--cizgi);">
+        <p style="font-size: var(--boyut-kucuk); color: var(--metin-soluk); margin-bottom: 0.5rem;">
+          Hızlı Test Hesapları (Şifre: <strong>Yemek2026!</strong>)
+        </p>
+        <div class="hizli-hesaplar">
+          <button type="button" class="dugme dugme-ikincil dugme-kucuk hizli-giris" data-eposta="mehmet.yildiz@ogr.kampus.edu.tr">Öğrenci (Normal)</button>
+          <button type="button" class="dugme dugme-ikincil dugme-kucuk hizli-giris" data-eposta="ayse.demir@ogr.kampus.edu.tr">Öğrenci (12,50 TL)</button>
+          <button type="button" class="dugme dugme-ikincil dugme-kucuk hizli-giris" data-eposta="murat.kaya@kampus.edu.tr">Personel</button>
+          <button type="button" class="dugme dugme-ikincil dugme-kucuk hizli-giris" data-eposta="leyla.arslan@kampus.edu.tr">Yönetici</button>
+        </div>
       </div>
-
-      <p id="uygulama-durumu" class="bildirim" role="status">Uygulama servisi kontrol ediliyor…</p>
     </section>
   </main>
 
-  <script>
-    // Web API modunda /api/ isteği uygulamaya gider. 502/503 ise uygulama yok ya da çalışmıyor.
-    const kutu = document.getElementById('uygulama-durumu');
-    fetch('/api/', { headers: { Accept: 'application/json' } })
-      .then(yanit => {
-        if (yanit.status === 502 || yanit.status === 503) {
-          kutu.textContent = 'Uygulama servisine ulaşılamıyor. docker-compose.yml içindeki uygulama servisini ekleyip "docker compose up -d" çalıştırın.';
-          kutu.classList.add('bildirim-hata');
-        } else {
-          kutu.textContent = 'Uygulama servisi yanıt veriyor (HTTP ' + yanit.status + ').';
-          kutu.classList.add('bildirim-basari');
-        }
-      })
-      .catch(() => {
-        kutu.textContent = 'İstek gönderilemedi. Apache günlüğüne bakın: docker compose logs frontend';
-        kutu.classList.add('bildirim-hata');
-      });
-  </script>
+  <!-- OTURUM AÇILDIKTAN SONRAKİ ANA UYGULAMA -->
+  <div id="uygulama-ekrani" class="gizli">
+    <header class="ust-cubuk">
+      <div class="kapsayici">
+        <div class="ust-satir">
+          <span class="marka">Yemekhane Otomasyonu</span>
+          <div class="kullanici-ozet">
+            <span id="ust-kullanici-ad" style="font-weight: 600;"></span>
+            <span id="ust-kullanici-rol" class="rozet"></span>
+            <span id="ust-kullanici-bakiye" class="rozet rozet-bakiye"></span>
+            <button type="button" id="cikis-dugmesi" class="dugme dugme-ikincil dugme-kucuk">Çıkış</button>
+          </div>
+        </div>
+
+        <nav class="sekme-menu" aria-label="Ana menü">
+          <button type="button" class="sekme-dugme aktif" data-sekme="gunluk">Günün Menüsü</button>
+          <button type="button" class="sekme-dugme" data-sekme="haftalik">Haftalık Menü</button>
+          <button type="button" class="sekme-dugme" data-sekme="rezervasyonlar">Rezervasyonlarım</button>
+          <button type="button" class="sekme-dugme" data-sekme="bakiye">Bakiye</button>
+          <button type="button" class="sekme-dugme" data-sekme="degerlendirme">Değerlendirme</button>
+          <button type="button" id="sekme-yonetici-btn" class="sekme-dugme gizli" data-sekme="yonetici">Yönetici Paneli</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="kapsayici">
+      <div id="genel-bildirim" class="bildirim gizli" role="status" style="margin-bottom: 1rem;"></div>
+
+      <!-- 2. EKRAN: GÜNÜN MENÜSÜ -->
+      <section id="ekran-gunluk" class="sekme-icerik">
+        <div class="kart">
+          <h2>Günün Menüsü</h2>
+          <div class="filtre-izgara">
+            <div>
+              <label for="gunluk-yemekhane">Yemekhane</label>
+              <select id="gunluk-yemekhane"></select>
+            </div>
+            <div>
+              <label for="gunluk-tarih">Tarih</label>
+              <input type="date" id="gunluk-tarih">
+            </div>
+            <div>
+              <label for="gunluk-ogun">Öğün</label>
+              <select id="gunluk-ogun"></select>
+            </div>
+            <div>
+              <button type="button" id="gunluk-getir-btn" class="dugme" style="width: 100%;">Menüyü Göster</button>
+            </div>
+          </div>
+        </div>
+        <div id="gunluk-menu-alani"></div>
+      </section>
+
+      <!-- 3. EKRAN: HAFTALIK MENÜ -->
+      <section id="ekran-haftalik" class="sekme-icerik gizli">
+        <div class="kart">
+          <h2>Haftalık Menü Programı</h2>
+          <div class="filtre-izgara">
+            <div>
+              <label for="haftalik-yemekhane">Yemekhane</label>
+              <select id="haftalik-yemekhane"></select>
+            </div>
+            <div>
+              <label for="haftalik-baslangic">Başlangıç Tarihi</label>
+              <input type="date" id="haftalik-baslangic">
+            </div>
+            <div>
+              <button type="button" id="haftalik-getir-btn" class="dugme" style="width: 100%;">Haftayı Listele</button>
+            </div>
+          </div>
+        </div>
+        <div id="haftalik-menu-alani"></div>
+      </section>
+
+      <!-- 4. EKRAN: REZERVASYONLARIM -->
+      <section id="ekran-rezervasyonlar" class="sekme-icerik gizli">
+        <div class="kart">
+          <div class="ust-satir" style="margin-bottom: 0.75rem;">
+            <h2 style="margin: 0;">Rezervasyonlarım</h2>
+            <button type="button" id="rez-yenile-btn" class="dugme dugme-ikincil dugme-kucuk">Yenile</button>
+          </div>
+          <p style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">
+            Aktif rezervasyonlarınızı son saate kadar iptal ederek ücret iadesi alabilirsiniz. Değerlendirme ekranını test etmek için aktif rezervasyonda turnike geçişini simüle edebilirsiniz.
+          </p>
+          <div id="rezervasyonlar-alani"></div>
+        </div>
+      </section>
+
+      <!-- 5. EKRAN: BAKİYE İŞLEMLERİ -->
+      <section id="ekran-bakiye" class="sekme-icerik gizli">
+        <div class="kart">
+          <h2>Bakiye Yükleme</h2>
+          <p>Mevcut Bakiyeniz: <strong id="bakiye-ekran-tutar" style="font-size: var(--boyut-buyuk); color: var(--ana);">0,00 TL</strong></p>
+          <form id="bakiye-yukle-formu" class="filtre-izgara">
+            <div>
+              <label for="bakiye-tutar-input">Yüklenecek Tutar (10 – 1000 TL)</label>
+              <input type="number" id="bakiye-tutar-input" min="10" max="1000" step="0.01" required placeholder="Örn: 100">
+            </div>
+            <div>
+              <button type="submit" class="dugme" style="width: 100%;">Bakiye Yükle</button>
+            </div>
+          </form>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;">
+            <button type="button" class="dugme dugme-ikincil dugme-kucuk hizli-tutar" data-tutar="50">+50 TL</button>
+            <button type="button" class="dugme dugme-ikincil dugme-kucuk hizli-tutar" data-tutar="100">+100 TL</button>
+            <button type="button" class="dugme dugme-ikincil dugme-kucuk hizli-tutar" data-tutar="250">+250 TL</button>
+          </div>
+        </div>
+
+        <div class="kart">
+          <h3>Son Bakiye Hareketleri</h3>
+          <div id="bakiye-hareketleri-alani"></div>
+        </div>
+      </section>
+
+      <!-- 6. EKRAN: DEĞERLENDİRME -->
+      <section id="ekran-degerlendirme" class="sekme-icerik gizli">
+        <div class="kart">
+          <h2>Menü Değerlendirme</h2>
+          <p style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">
+            Yalnızca turnikeden geçerek kullandığınız menüleri 1 ile 5 arasında puanlayabilirsiniz.
+          </p>
+          <div id="degerlendirme-alani"></div>
+        </div>
+      </section>
+
+      <!-- 7. EKRAN: YÖNETİCİ PANELİ -->
+      <section id="ekran-yonetici" class="sekme-icerik gizli">
+        <div class="kart">
+          <h2>Menü Ekle / Güncelle</h2>
+          <form id="yonetici-menu-formu">
+            <div class="filtre-izgara" style="margin-bottom: 0.85rem;">
+              <div>
+                <label for="yon-yemekhane">Yemekhane</label>
+                <select id="yon-yemekhane" required></select>
+              </div>
+              <div>
+                <label for="yon-tarih">Tarih</label>
+                <input type="date" id="yon-tarih" required>
+              </div>
+              <div>
+                <label for="yon-ogun">Öğün</label>
+                <select id="yon-ogun" required></select>
+              </div>
+            </div>
+
+            <div class="filtre-izgara" style="margin-bottom: 0.85rem;">
+              <div>
+                <label for="yon-ogr-fiyat">Öğrenci Fiyatı (TL)</label>
+                <input type="number" id="yon-ogr-fiyat" min="0" step="0.01" value="25.00" required>
+              </div>
+              <div>
+                <label for="yon-per-fiyat">Personel Fiyatı (TL)</label>
+                <input type="number" id="yon-per-fiyat" min="0" step="0.01" value="65.00" required>
+              </div>
+            </div>
+
+            <div class="alan">
+              <label>Menü Yemekleri (En az 1 yemek seçiniz)</label>
+              <div id="yon-yemek-listesi" class="yemek-secim-alani"></div>
+            </div>
+
+            <button type="submit" class="dugme">Menüyü Kaydet</button>
+          </form>
+        </div>
+
+        <div class="kart">
+          <div class="ust-satir" style="margin-bottom: 0.75rem;">
+            <h2 style="margin: 0;">Doluluk ve Puan Raporu</h2>
+            <button type="button" id="yon-rapor-yenile" class="dugme dugme-ikincil dugme-kucuk">Raporu Yenile</button>
+          </div>
+          <div id="yonetici-rapor-alani"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/uygulama.js"></script>
 </body>
 </html>
