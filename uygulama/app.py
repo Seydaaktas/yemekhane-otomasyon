@@ -224,17 +224,18 @@ def yonetici_menu_kaydet():
 
     veri = request.get_json(silent=True) or {}
     try:
+        ozel_not = (veri.get("ozel_not") or "").strip() or None
         menu_id = vk.yonetici_menu_kaydet(
             int(veri["yemekhane_id"]),
             veri["tarih"],
             int(veri["ogun_id"]),
             float(veri["ogrenci_fiyati"]),
             float(veri["personel_fiyati"]),
-            veri.get("yemek_idler", [])
+            veri.get("yemek_idler", []),
+            ozel_not
         )
         return yanit_ver({"mesaj": "Menü kaydedildi.", "menu_id": menu_id})
     except KeyError:
         return yanit_ver({"hata": "Tüm menü alanlarını doldurunuz."}, 400)
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)

@@ -96,6 +96,9 @@ def gunun_menusu_getir(yemekhane_id, tarih, ogun_id):
             cur.execute("SELECT * FROM v_menu_doluluk WHERE menu_id = %s", (menu_id,))
             doluluk = cur.fetchone()
 
+            cur.execute("SELECT ozel_not FROM menuler WHERE id = %s", (menu_id,))
+            menu_ek = cur.fetchone() or {}
+
             toplam_kalori = sum(int(y["kalori"]) for y in yemekler)
             return {
                 "menu_id": menu_id,
@@ -107,6 +110,7 @@ def gunun_menusu_getir(yemekhane_id, tarih, ogun_id):
                 "rezervasyon_son": yemekler[0]["rezervasyon_son"],
                 "ogrenci_fiyati": yemekler[0]["ogrenci_fiyati"],
                 "personel_fiyati": yemekler[0]["personel_fiyati"],
+                "ozel_not": menu_ek.get("ozel_not"),
                 "toplam_kalori": toplam_kalori,
                 "doluluk": doluluk,
                 "yemekler": yemekler
@@ -121,7 +125,7 @@ def haftalik_menuleri_getir(yemekhane_id, baslangic_tarih, bitis_tarih):
             cur.execute(
                 "SELECT d.menu_id, d.tarih, d.yemekhane_id, d.yemekhane, d.ogun_id, d.ogun, "
                 "d.kapasite, d.rezerve, d.bos_yer, d.doluluk_yuzde, d.rezervasyon_son, "
-                "m.ogrenci_fiyati, m.personel_fiyati, "
+                "m.ogrenci_fiyati, m.personel_fiyati, m.ozel_not, "
                 "(d.rezervasyon_son <= NOW()) AS sure_doldu "
                 "FROM v_menu_doluluk d "
                 "JOIN menuler m ON m.id = d.menu_id "
@@ -146,7 +150,6 @@ def haftalik_menuleri_getir(yemekhane_id, baslangic_tarih, bitis_tarih):
 
 def rezervasyon_yap(kullanici_id, menu_id):
     sonuc = _proseduru_calistir("sp_rezervasyon_yap", (kullanici_id, menu_id))
-    # Doluluk değiştiği için menü önbelleğini temizle
     rk.menu_onbellegi_temizle()
     guncel_kullanici = kullanici_getir_id(kullanici_id, kaynaktan=True)
     return {
@@ -156,7 +159,6 @@ def rezervasyon_yap(kullanici_id, menu_id):
 
 def rezervasyon_iptal(kullanici_id, rezervasyon_id):
     sonuc = _proseduru_calistir("sp_rezervasyon_iptal", (kullanici_id, rezervasyon_id))
-    # Doluluk değiştiği için menü önbelleğini temizle
     rk.menu_onbellegi_temizle()
     guncel_kullanici = kullanici_getir_id(kullanici_id, kaynaktan=True)
     return {
@@ -265,7 +267,7 @@ def yonetici_raporlari_getir():
             cur.execute(
                 "SELECT d.menu_id, d.tarih, d.yemekhane_id, d.yemekhane, d.ogun_id, d.ogun, "
                 "d.kapasite, d.rezerve, d.bos_yer, d.doluluk_yuzde, "
-                "m.ogrenci_fiyati, m.personel_fiyati, "
+                "m.ogrenci_fiyati, m.personel_fiyati, m.ozel_not, "
                 "COALESCE(p.oy_sayisi, 0) AS oy_sayisi, p.ortalama_puan "
                 "FROM v_menu_doluluk d "
                 "JOIN menuler m ON m.id = d.menu_id "
@@ -281,7 +283,7 @@ def yonetici_raporlari_getir():
     finally:
         conn.close()
 
-def yonetici_menu_kaydet(yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati, yemek_idler):
+def yonetici_menu_kaydet(yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati, yemek_idler, ozel_not=None):
     if not yemek_idler:
         raise IsKuraliHatasi("Menüde en az bir yemek seçilmelidir.")
 
@@ -296,15 +298,15 @@ def yonetici_menu_kaydet(yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_
             if mevcut:
                 menu_id = mevcut["id"]
                 cur.execute(
-                    "UPDATE menuler SET ogrenci_fiyati = %s, personel_fiyati = %s WHERE id = %s",
-                    (ogrenci_fiyati, personel_fiyati, menu_id)
+                    "UPDATE menuler SET ogrenci_fiyati = %s, personel_fiyati = %s, ozel_not = %s WHERE id = %s",
+                    (ogrenci_fiyati, personel_fiyati, ozel_not, menu_id)
                 )
                 cur.execute("DELETE FROM menu_yemekleri WHERE menu_id = %s", (menu_id,))
             else:
                 cur.execute(
-                    "INSERT INTO menuler (yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati) "
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    (yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati)
+                    "INSERT INTO menuler (yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati, ozel_not) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati, ozel_not)
                 )
                 menu_id = cur.lastrowid
 
@@ -313,7 +315,6 @@ def yonetici_menu_kaydet(yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_
                     "INSERT INTO menu_yemekleri (menu_id, yemek_id) VALUES (%s, %s)",
                     (menu_id, int(y_id))
                 )
-            # Menü içeriği veya fiyatı değiştiği için önbelleği temizle
             rk.menu_onbellegi_temizle()
             return menu_id
     finally:

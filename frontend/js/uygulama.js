@@ -128,7 +128,6 @@ async function uygulamayiBaslat() {
   document.getElementById("haftalik-baslangic").value = bugun;
   document.getElementById("yon-tarih").value = bugun;
 
-  // Yönetici yemek seçim listesini doldur
   const yemekListesiAlani = document.getElementById("yon-yemek-listesi");
   yemekListesiAlani.innerHTML = durum.tanimlar.yemekler.map(y => `
     <label class="yemek-secim-satir">
@@ -191,6 +190,8 @@ async function gunlukMenuYukle() {
           <span class="rozet rozet-bakiye" style="font-size:1rem;">${tlBicimle(ucret)}</span>
         </div>
 
+        ${m.ozel_not ? `<p class="bildirim bildirim-basari" style="margin-bottom:0.85rem;"><strong>Duyuru:</strong> ${m.ozel_not}</p>` : ""}
+
         <div class="menu-bilgi-seridi">
           <span class="rozet">Toplam: <strong>${m.toplam_kalori} kcal</strong></span>
           <span class="rozet">Doluluk: <strong>${d.rezerve}/${d.kapasite}</strong> (%${d.doluluk_yuzde})</span>
@@ -249,6 +250,7 @@ async function haftalikMenuYukle() {
             </div>
             <span class="rozet rozet-bakiye">${tlBicimle(ucret)}</span>
           </div>
+          ${m.ozel_not ? `<p style="font-size:var(--boyut-kucuk); color:var(--basari); margin-bottom:0.5rem;"><strong>Duyuru:</strong> ${m.ozel_not}</p>` : ""}
           <p style="font-size:var(--boyut-kucuk); margin-bottom:0.75rem;">${yemekOzet}</p>
           <button type="button" class="dugme dugme-kucuk rez-yap-btn" data-menu-id="${m.menu_id}" ${pasifMi ? "disabled" : ""}>
             ${m.sure_doldu ? "Süre Doldu" : (m.bos_yer <= 0 ? "Dolu" : "Rezervasyon Yap")}
@@ -426,6 +428,7 @@ async function yoneticiRaporunuYukle() {
               <th>Doluluk</th>
               <th>Fiyat (Öğr / Per)</th>
               <th>Ortalama Puan</th>
+              <th>Özel Not</th>
             </tr>
           </thead>
           <tbody>
@@ -436,6 +439,7 @@ async function yoneticiRaporunuYukle() {
                 <td>${m.rezerve}/${m.kapasite} (%${m.doluluk_yuzde})</td>
                 <td>${tlBicimle(m.ogrenci_fiyati)} / ${tlBicimle(m.personel_fiyati)}</td>
                 <td>${m.oy_sayisi > 0 ? `${m.ortalama_puan} / 5 (${m.oy_sayisi} oy)` : "Henüz oy yok"}</td>
+                <td>${m.ozel_not || "-"}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -449,7 +453,6 @@ async function yoneticiRaporunuYukle() {
 
 // --- OLAY DİNLEYİCİLERİ ---
 document.addEventListener("DOMContentLoaded", async () => {
-  // Hızlı giriş butonları
   document.querySelectorAll(".hizli-giris").forEach(btn => {
     btn.addEventListener("click", () => {
       document.getElementById("giris-eposta").value = btn.dataset.eposta;
@@ -457,7 +460,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
-  // Giriş formu
   document.getElementById("giris-formu").addEventListener("submit", async (e) => {
     e.preventDefault();
     const hataKutu = document.getElementById("giris-bildirim");
@@ -480,31 +482,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Çıkış
   document.getElementById("cikis-dugmesi").addEventListener("click", async () => {
     await apiIstegi("/api/cikis", { method: "POST" }).catch(() => {});
     oturumuKapat();
   });
 
-  // Sekme geçişleri
   document.querySelectorAll(".sekme-dugme").forEach(btn => {
     btn.addEventListener("click", () => sekmeAc(btn.dataset.sekme));
   });
 
-  // Filtre butonları
   document.getElementById("gunluk-getir-btn").addEventListener("click", gunlukMenuYukle);
   document.getElementById("haftalik-getir-btn").addEventListener("click", haftalikMenuYukle);
   document.getElementById("rez-yenile-btn").addEventListener("click", rezervasyonlariYukle);
   document.getElementById("yon-rapor-yenile").addEventListener("click", yoneticiRaporunuYukle);
 
-  // Hızlı tutar butonları
   document.querySelectorAll(".hizli-tutar").forEach(btn => {
     btn.addEventListener("click", () => {
       document.getElementById("bakiye-tutar-input").value = btn.dataset.tutar;
     });
   });
 
-  // Bakiye yükleme formu
   document.getElementById("bakiye-yukle-formu").addEventListener("submit", async (e) => {
     e.preventDefault();
     bildirimGizle();
@@ -524,7 +521,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Yönetici menü kaydetme formu
   document.getElementById("yonetici-menu-formu").addEventListener("submit", async (e) => {
     e.preventDefault();
     bildirimGizle();
@@ -540,6 +536,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           ogun_id: Number(document.getElementById("yon-ogun").value),
           ogrenci_fiyati: Number(document.getElementById("yon-ogr-fiyat").value),
           personel_fiyati: Number(document.getElementById("yon-per-fiyat").value),
+          ozel_not: document.getElementById("yon-ozel-not").value,
           yemek_idler: seciliYemekler
         }
       });
@@ -550,7 +547,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Dinamik buton tıklamaları (Rezervasyon yap, iptal et, turnike test)
   document.body.addEventListener("click", async (e) => {
     const rezBtn = e.target.closest(".rez-yap-btn");
     if (rezBtn) {
@@ -586,7 +582,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Dinamik değerlendirme formları
   document.body.addEventListener("submit", async (e) => {
     const degForm = e.target.closest(".deg-form");
     if (!degForm) return;
@@ -607,7 +602,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Sayfa yenilendiğinde mevcut token varsa oturumu geri yükle
   if (durum.token) {
     try {
       const veri = await apiIstegi("/api/ben");
