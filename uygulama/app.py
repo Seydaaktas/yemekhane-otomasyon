@@ -3,12 +3,11 @@ from decimal import Decimal
 from functools import wraps
 import secrets
 import bcrypt
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, make_response, request
 import veri_katmani as vk
+import redis_katmani as rk
 
 app = Flask(__name__)
-
-OTURUMLAR = {}
 
 def _json_temizle(veri):
     if isinstance(veri, Decimal):
@@ -26,15 +25,19 @@ def _json_temizle(veri):
         return {k: _json_temizle(v) for k, v in veri.items()}
     return veri
 
-def yanit_ver(veri, durum=200):
-    return jsonify(_json_temizle(veri)), durum
+def yanit_ver(veri, durum=200, basliklar=None):
+    resp = make_response(jsonify(_json_temizle(veri)), durum)
+    if basliklar:
+        for k, v in basliklar.items():
+            resp.headers[k] = v
+    return resp
 
 def giris_gerekli(f):
     @wraps(f)
     def sarmalayici(*args, **kwargs):
         auth = request.headers.get("Authorization", "")
         token = auth.replace("Bearer ", "").strip()
-        kullanici_id = OTURUMLAR.get(token)
+        kullanici_id = rk.oturum_kullanici_id_getir(token)
         if not kullanici_id:
             return yanit_ver({"hata": "Oturum açmanız gerekiyor."}, 401)
         kullanici = vk.kullanici_getir_id(kullanici_id)
@@ -56,7 +59,7 @@ def genel_hata_yakala(e):
 
 @app.get("/api/")
 def saglik():
-    return yanit_ver({"durum": "ok", "servis": "yemekhane-api"})
+    return yanit_ver({"durum": "ok", "servis": "yemekhane-api", "onbellek": "redis"})
 
 @app.post("/api/giris")
 def giris():
@@ -75,7 +78,7 @@ def giris():
         return yanit_ver({"hata": "E-posta veya şifre hatalı."}, 401)
 
     token = secrets.token_hex(24)
-    OTURUMLAR[token] = kullanici["id"]
+    rk.oturum_kaydet(token, kullanici["id"])
 
     guncel = vk.kullanici_getir_id(kullanici["id"], kaynaktan=True)
     return yanit_ver({"token": token, "kullanici": guncel})
@@ -83,7 +86,7 @@ def giris():
 @app.post("/api/cikis")
 @giris_gerekli
 def cikis():
-    OTURUMLAR.pop(request.token, None)
+    rk.oturum_sil(request.token)
     return yanit_ver({"mesaj": "Çıkış yapıldı."})
 
 @app.get("/api/ben")
@@ -108,8 +111,15 @@ def gunluk_menu():
     ogun_id = request.args.get("ogun_id", default=2, type=int)
     tarih = request.args.get("tarih") or date.today().isoformat()
 
-    menu = vk.gunun_menusu_getir(yemekhane_id, tarih, ogun_id)
-    return yanit_ver({"menu": menu})
+    anahtar = f"menu:gunluk:{yemekhane_id}:{tarih}:{ogun_id}"
+    onbellek_veri = rk.onbellekten_oku(anahtar)
+    if onbellek_veri is not None:
+        return yanit_ver({"menu": onbellek_veri, "onbellek": "HIT"}, basliklar={"X-Cache": "HIT"})
+
+    menu = _json_temizle(vk.gunun_menusu_getir(yemekhane_id, tarih, ogun_id))
+    if menu is not None:
+        rk.onbellege_yaz(anahtar, menu, rk.GUNLUK_MENU_TTL_SN)
+    return yanit_ver({"menu": menu, "onbellek": "MISS"}, basliklar={"X-Cache": "MISS"})
 
 @app.get("/api/menu/haftalik")
 @giris_gerekli
@@ -119,8 +129,21 @@ def haftalik_menu():
     baslangic = request.args.get("baslangic") or (bugun - timedelta(days=bugun.weekday())).isoformat()
     bitis = request.args.get("bitis") or (date.fromisoformat(baslangic) + timedelta(days=6)).isoformat()
 
-    menuler = vk.haftalik_menuleri_getir(yemekhane_id, baslangic, bitis)
-    return yanit_ver({"menuler": menuler, "baslangic": baslangic, "bitis": bitis})
+    anahtar = f"menu:haftalik:{yemekhane_id}:{baslangic}:{bitis}"
+    onbellek_veri = rk.onbellekten_oku(anahtar)
+    if onbellek_veri is not None:
+        return yanit_ver(
+            {"menuler": onbellek_veri, "baslangic": baslangic, "bitis": bitis, "onbellek": "HIT"},
+            basliklar={"X-Cache": "HIT"}
+        )
+
+    menuler = _json_temizle(vk.haftalik_menuleri_getir(yemekhane_id, baslangic, bitis))
+    if menuler:
+        rk.onbellege_yaz(anahtar, menuler, rk.HAFTALIK_MENU_TTL_SN)
+    return yanit_ver(
+        {"menuler": menuler, "baslangic": baslangic, "bitis": bitis, "onbellek": "MISS"},
+        basliklar={"X-Cache": "MISS"}
+    )
 
 @app.get("/api/rezervasyonlar")
 @giris_gerekli

@@ -1,5 +1,6 @@
 import pymysql
 from db import yazma_baglantisi, okuma_baglantisi
+import redis_katmani as rk
 
 class IsKuraliHatasi(Exception):
     pass
@@ -145,6 +146,8 @@ def haftalik_menuleri_getir(yemekhane_id, baslangic_tarih, bitis_tarih):
 
 def rezervasyon_yap(kullanici_id, menu_id):
     sonuc = _proseduru_calistir("sp_rezervasyon_yap", (kullanici_id, menu_id))
+    # Doluluk değiştiği için menü önbelleğini temizle
+    rk.menu_onbellegi_temizle()
     guncel_kullanici = kullanici_getir_id(kullanici_id, kaynaktan=True)
     return {
         "rezervasyon": sonuc,
@@ -153,6 +156,8 @@ def rezervasyon_yap(kullanici_id, menu_id):
 
 def rezervasyon_iptal(kullanici_id, rezervasyon_id):
     sonuc = _proseduru_calistir("sp_rezervasyon_iptal", (kullanici_id, rezervasyon_id))
+    # Doluluk değiştiği için menü önbelleğini temizle
+    rk.menu_onbellegi_temizle()
     guncel_kullanici = kullanici_getir_id(kullanici_id, kaynaktan=True)
     return {
         "iptal": sonuc,
@@ -308,6 +313,8 @@ def yonetici_menu_kaydet(yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_
                     "INSERT INTO menu_yemekleri (menu_id, yemek_id) VALUES (%s, %s)",
                     (menu_id, int(y_id))
                 )
+            # Menü içeriği veya fiyatı değiştiği için önbelleği temizle
+            rk.menu_onbellegi_temizle()
             return menu_id
     finally:
         conn.close()
